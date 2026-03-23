@@ -3,112 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <title>VolleyFit</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<!-- FORCE NO CACHE -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
-body{background:#0f172a;color:white;text-align:center;font-family:Arial}
-.page{display:none}
-.active{display:block}
-button{margin:5px;padding:10px;background:#22c55e;border:none}
+body{
+  background:#0f172a;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  margin-top:60px;
+}
+input{
+  padding:10px;
+  margin:6px;
+  border-radius:6px;
+  border:none;
+}
+button{
+  padding:10px 14px;
+  margin:6px;
+  background:#22c55e;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+#home{display:none;}
 </style>
 </head>
 
 <body>
 
-<h1>VolleyFit</h1>
+<h1>🏐 VolleyFit</h1>
 
-<div id="auth" class="page active">
-<input id="email" placeholder="email"><br>
-<input id="password" placeholder="password" type="password"><br>
-<button onclick="signup()">Sign Up</button>
-<button onclick="login()">Login</button>
+<div id="auth">
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="login()">Login</button>
 </div>
 
-<div id="home" class="page">
-<h2 id="user"></h2>
-<p>XP: <span id="xp">0</span></p>
-<p>Level: <span id="level">1</span></p>
-<button onclick="gainXP()">+20 XP</button>
-<button onclick="logout()">Logout</button>
+<div id="home">
+  <h2 id="user"></h2>
+  <p>XP: <span id="xp">0</span></p>
+  <p>Level: <span id="level">1</span></p>
+
+  <button onclick="gainXP()">+20 XP</button>
+  <br><br>
+  <button onclick="logout()">Logout</button>
 </div>
 
 <script>
 
-// ONLY ONE SUPABASE
+// 🔥 SUPABASE (ONLY ONCE)
 const supabase = window.supabase.createClient(
   "https://bxgvyrspkjxleekhhawh.supabase.co",
-  "PUT_YOUR_REAL_KEY_HERE"
+  "PASTE_YOUR_KEY_HERE"
 );
 
-let user = null;
+let currentUser = null;
 let xp = 0;
 let level = 1;
 
-function showPage(id){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
-
+// 🔐 SIGNUP
 async function signup(){
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
 
   const { error } = await supabase.auth.signUp({ email, password });
 
-  if(error) alert(error.message);
-  else alert("Signup worked");
+  if(error){
+    alert(error.message);
+  } else {
+    alert("Signup successful 🔥 Now login");
+  }
 }
 
+// 🔓 LOGIN
 async function login(){
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if(error){ alert(error.message); return; }
+  if(error){
+    alert(error.message);
+    return;
+  }
 
-  user = data.user;
+  currentUser = data.user;
 
-  await createUser();
+  await ensureUser();
   await loadUser();
 
-  showPage('home');
+  document.getElementById('auth').style.display = "none";
+  document.getElementById('home').style.display = "block";
 }
 
-async function createUser(){
-  const { data } = await supabase.from('users').select('*').eq('id', user.id);
+// 👤 CREATE USER IF NOT EXISTS
+async function ensureUser(){
+  const { data } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', currentUser.id);
 
-  if(data.length === 0){
+  if(!data || data.length === 0){
     await supabase.from('users').insert([
-      { id:user.id, username:user.email, xp:0, level:1 }
+      {
+        id: currentUser.id,
+        username: currentUser.email,
+        xp: 0,
+        level: 1
+      }
     ]);
   }
 }
 
+// 📊 LOAD USER DATA
 async function loadUser(){
-  const { data } = await supabase.from('users').select('*').eq('id', user.id).single();
+  const { data } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', currentUser.id)
+    .single();
 
   xp = data.xp;
   level = data.level;
 
-  document.getElementById('user').innerText = user.email;
+  document.getElementById('user').innerText = currentUser.email;
   document.getElementById('xp').innerText = xp;
   document.getElementById('level').innerText = level;
 }
 
+// 🎮 XP SYSTEM
 async function gainXP(){
   xp += 20;
-  if(xp >= 100){ xp -= 100; level++; }
 
-  await supabase.from('users').update({ xp, level }).eq('id', user.id);
+  if(xp >= 100){
+    xp -= 100;
+    level++;
+  }
+
+  await supabase
+    .from('users')
+    .update({ xp, level })
+    .eq('id', currentUser.id);
 
   document.getElementById('xp').innerText = xp;
   document.getElementById('level').innerText = level;
 }
 
+// 🚪 LOGOUT
 async function logout(){
   await supabase.auth.signOut();
-  showPage('auth');
+  location.reload();
 }
+
+// 🔁 AUTO LOGIN
+supabase.auth.getSession().then(async ({ data })=>{
+  if(data.session){
+    currentUser = data.session.user;
+    await ensureUser();
+    await loadUser();
+
+    document.getElementById('auth').style.display = "none";
+    document.getElementById('home').style.display = "block";
+  }
+});
 
 </script>
 
