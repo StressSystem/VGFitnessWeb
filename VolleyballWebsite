@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VolleyFit XP</title>
+<style>
+body{font-family:Arial;background:#0f172a;color:white;margin:0}
+nav{background:#020617;padding:10px;display:flex;gap:15px;justify-content:center}
+nav button{background:none;border:none;color:white;cursor:pointer}
+.page{display:none;padding:20px;text-align:center}
+.active{display:block}
+.task{background:#1e293b;margin:10px auto;padding:15px;border-radius:10px;max-width:500px}
+button.action{padding:8px 12px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:5px}
+.xp-bar{width:80%;margin:20px auto;background:#334155;border-radius:10px;overflow:hidden}
+.xp-fill{height:20px;width:0%;background:#22c55e;transition:0.3s}
+input{padding:8px;border-radius:6px;border:none;margin:5px}
+.post{background:#1e293b;margin:10px auto;padding:10px;border-radius:10px;max-width:500px}
+img{max-width:100%;border-radius:8px;margin-top:5px}
+</style>
+</head>
+<body>
+
+<nav>
+<button onclick="showPage('login')">Login</button>
+<button onclick="showPage('home')">Home</button>
+<button onclick="showPage('social')">Social</button>
+<button onclick="showPage('leaderboard')">Leaderboard</button>
+<button onclick="showPage('dev')">Dev</button>
+</nav>
+
+<div id="login" class="page active">
+<h1>🏐 Login</h1>
+<input id="username" placeholder="Username">
+<br>
+<button class="action" onclick="login()">Login</button>
+</div>
+
+<div id="home" class="page">
+<h1>🏐 VolleyFit</h1>
+<h2 id="userDisplay"></h2>
+<h3>Level <span id="level">1</span></h3>
+<p>XP: <span id="xp">0</span></p>
+<div class="xp-bar"><div id="xpFill" class="xp-fill"></div></div>
+<h2>Daily Tasks</h2>
+<div id="tasks"></div>
+</div>
+
+<div id="social" class="page">
+<h1>📱 Feed</h1>
+<input id="postText" placeholder="Post">
+<input type="file" id="fileInput">
+<br>
+<button class="action" onclick="addPost()">Post</button>
+<div id="feed"></div>
+</div>
+
+<div id="leaderboard" class="page">
+<h1>🏆 Leaderboard</h1>
+<div id="board"></div>
+</div>
+
+<div id="dev" class="page">
+<h1>🛠 Dev Mode</h1>
+<input id="devCode" placeholder="code">
+<button onclick="unlockDev()">Unlock</button>
+<div id="devPanel" style="display:none">
+<button class="action" onclick="addXP(100)">+100 XP</button>
+<button class="action" onclick="resetTasks()">Reset Tasks</button>
+<button class="action" onclick="resetAll()">Reset All</button>
+<button class="action" onclick="forceNextDay()">⏩ Next Day</button>
+</div>
+</div>
+
+<script>
+let user = localStorage.getItem("user") || "";
+let xp = Number(localStorage.getItem("xp")) || 0;
+let level = Number(localStorage.getItem("level")) || 1;
+let requiredXP = Number(localStorage.getItem("requiredXP")) || 100;
+let posts = JSON.parse(localStorage.getItem("posts")) || [];
+
+const SECRET_CODE = "7355608";
+
+const tasksPool = [
+{name:"10 pushups",xp:10},
+{name:"20 squats",xp:15},
+{name:"50 passes",xp:20},
+{name:"serve 20",xp:25},
+{name:"spike 15",xp:30},
+{name:"plank 1min",xp:15}
+];
+
+function showPage(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+}
+
+function login(){
+user=document.getElementById("username").value;
+if(user){localStorage.setItem("user",user);showPage('home');updateUI();}
+}
+
+function getTasks(){
+let today=new Date().toLocaleDateString();
+let saved=localStorage.getItem("date");
+
+if(saved!==today){
+localStorage.setItem("date",today);
+let t=[...tasksPool].sort(()=>0.5-Math.random()).slice(0,6);
+localStorage.setItem("tasks",JSON.stringify(t));
+localStorage.setItem("done",JSON.stringify([]));
+}
+
+return JSON.parse(localStorage.getItem("tasks")) || [];
+}
+
+function renderTasks(){
+let tasks=getTasks();
+let done=JSON.parse(localStorage.getItem("done"))||[];
+let div=document.getElementById("tasks");
+div.innerHTML="";
+
+ tasks.forEach((t,i)=>{
+ let requireProof = t.xp >= 25;
+ let el=document.createElement("div");
+ el.className="task";
+ el.innerHTML=`${t.name} (${t.xp}xp) ${requireProof?"📸 Proof Required":""}<br>
+ <button class="action" onclick="complete(${i})" ${done.includes(i)?"disabled":""}>${done.includes(i)?"Done":"Complete"}</button>`;
+ div.appendChild(el);
+ });
+}
+
+function complete(i){
+let done=JSON.parse(localStorage.getItem("done"))||[];
+if(done.includes(i)) return;
+
+let tasks=getTasks();
+let t=tasks[i];
+
+if(t.xp>=25 && !confirm("Upload proof first?")){
+alert("No proof = no XP 😈");
+return;
+}
+
+ done.push(i);
+ localStorage.setItem("done",JSON.stringify(done));
+ addXP(t.xp);
+ renderTasks();
+}
+
+function addXP(val){
+xp+=val;
+while(xp>=requiredXP){
+xp-=requiredXP;
+level++;
+requiredXP=Math.floor(requiredXP*1.25);
+alert("LEVEL UP 🔥");
+}
+
+localStorage.setItem("xp",xp);
+localStorage.setItem("level",level);
+localStorage.setItem("requiredXP",requiredXP);
+updateUI();
+updateLeaderboard();
+}
+
+function updateUI(){
+document.getElementById("xp").innerText=xp;
+document.getElementById("level").innerText=level;
+document.getElementById("xpFill").style.width=(xp/requiredXP*100)+"%";
+document.getElementById("userDisplay").innerText=user;
+}
+
+function updateLeaderboard(){
+let board=JSON.parse(localStorage.getItem("board"))||[];
+let existing=board.find(u=>u.name===user);
+if(existing){existing.level=level}else{board.push({name:user,level:level})}
+localStorage.setItem("board",JSON.stringify(board));
+renderBoard();
+}
+
+function renderBoard(){
+let board=JSON.parse(localStorage.getItem("board"))||[];
+board.sort((a,b)=>b.level-a.level);
+let div=document.getElementById("board");div.innerHTML="";
+board.forEach(u=>{div.innerHTML+=`<div class='task'>${u.name} - Level ${u.level}</div>`});
+}
+
+function addPost(){
+let text=document.getElementById("postText").value;
+let file=document.getElementById("fileInput").files[0];
+if(!text && !file) return;
+
+if(file){
+let reader=new FileReader();
+reader.onload=e=>{
+posts.unshift({user,text,image:e.target.result});
+localStorage.setItem("posts",JSON.stringify(posts));
+renderFeed();
+}
+reader.readAsDataURL(file);
+}else{
+posts.unshift({user,text});
+localStorage.setItem("posts",JSON.stringify(posts));
+renderFeed();
+}
+}
+
+function renderFeed(){
+let div=document.getElementById("feed");
+div.innerHTML="";
+posts.forEach(p=>{
+div.innerHTML+=`<div class='post'><b>${p.user}</b>: ${p.text||""}${p.image?`<br><img src="${p.image}">`:""}</div>`;
+});
+}
+
+function unlockDev(){
+if(document.getElementById("devCode").value===SECRET_CODE){
+document.getElementById("devPanel").style.display="block";
+}
+}
+
+function resetTasks(){localStorage.removeItem("date");renderTasks()}
+function resetAll(){localStorage.clear();location.reload()}
+function forceNextDay(){let y=new Date();y.setDate(y.getDate()-1);localStorage.setItem("date",y.toLocaleDateString());renderTasks()}
+
+if(user){showPage('home');}
+renderTasks();
+updateUI();
+renderFeed();
+renderBoard();
+</script>
+
+</body>
+</html>
