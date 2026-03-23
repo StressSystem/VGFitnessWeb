@@ -10,10 +10,9 @@ nav{background:#020617;padding:10px;display:flex;gap:15px;justify-content:center
 nav button{background:none;border:none;color:white;cursor:pointer}
 .page{display:none;padding:20px;text-align:center}
 .active{display:block}
-.card{background:#1e293b;margin:10px auto;padding:15px;border-radius:10px;max-width:520px}
-button{padding:8px 12px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:6px}
-input{padding:8px;border-radius:6px;border:none;margin:6px;width:260px}
-img{max-width:100%;border-radius:8px;margin-top:6px}
+.card{background:#1e293b;margin:10px auto;padding:20px;border-radius:12px;max-width:500px}
+button{padding:10px 14px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:6px}
+input{padding:10px;border-radius:6px;border:none;margin:6px;width:260px}
 </style>
 </head>
 <body>
@@ -21,8 +20,6 @@ img{max-width:100%;border-radius:8px;margin-top:6px}
 <nav>
 <button onclick="showPage('auth')">Auth</button>
 <button onclick="showPage('home')">Home</button>
-<button onclick="showPage('social')">Social</button>
-<button onclick="showPage('leaderboard')">Leaderboard</button>
 </nav>
 
 <div id="auth" class="page active">
@@ -38,50 +35,27 @@ img{max-width:100%;border-radius:8px;margin-top:6px}
 <div id="home" class="page">
   <div class="card">
     <h2>🏐 VolleyFit</h2>
-    <div id="userDisplay"></div>
-    <h3>Level <span id="level">1</span></h3>
+    <p id="user"></p>
     <p>XP: <span id="xp">0</span></p>
-    <h3>Tasks</h3>
-    <div id="tasks"></div>
+    <p>Level: <span id="level">1</span></p>
+    <button onclick="gainXP()">Do Task (+20 XP)</button>
+    <br><br>
     <button onclick="logout()">Logout</button>
   </div>
 </div>
 
-<div id="social" class="page">
-  <div class="card">
-    <h2>📱 Feed</h2>
-    <input id="postText" placeholder="Post">
-    <input type="file" id="fileInput"><br>
-    <button onclick="addPost()">Post</button>
-    <div id="feed"></div>
-  </div>
-</div>
-
-<div id="leaderboard" class="page">
-  <div class="card">
-    <h2>🏆 Leaderboard</h2>
-    <div id="board"></div>
-  </div>
-</div>
-
 <script>
-// 🔥 PUT YOUR REAL KEYS HERE
+// 🔥 PUT YOUR REAL VALUES
 const supabase = window.supabase.createClient(
-  "https://example.supabase.co",
-  "example"
+  "https://bxgvyrspkjxleekhhawh.supabase.co",
+  "sb_publishable_3iDeTmy2nttM_YfjfMjHnA_TeIklQNo"
 );
 
-let sessionUser = null;
+let currentUser = null;
 let xp = 0;
 let level = 1;
 
-const tasks = [
-  {name:"10 pushups",xp:10},
-  {name:"20 squats",xp:15},
-  {name:"50 passes",xp:20},
-  {name:"serve 20",xp:25},
-  {name:"spike 15",xp:30}
-];
+window.onerror = (e)=>alert("ERROR: "+e);
 
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -90,39 +64,74 @@ function showPage(id){
 
 // SIGNUP
 async function signup(){
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+  try{
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
 
-  const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({ email, password });
 
-  if(error){
-    alert(error.message);
-  } else {
-    alert("Signup successful 🔥 Now login");
-  }
+    if(error) throw error;
+
+    alert("Signup success 🔥 now login");
+  }catch(err){alert(err.message)}
 }
 
 // LOGIN
 async function login(){
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+  try{
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if(error){
-    alert(error.message);
-    return;
+    if(error) throw error;
+
+    currentUser = data.user;
+
+    await ensureUser();
+    await loadUser();
+
+    showPage('home');
+
+  }catch(err){alert(err.message)}
+}
+
+// CREATE USER ROW
+async function ensureUser(){
+  const { data } = await supabase.from('users').select('*').eq('id', currentUser.id);
+
+  if(!data || data.length===0){
+    await supabase.from('users').insert([
+      { id: currentUser.id, username: currentUser.email, xp:0, level:1 }
+    ]);
+  }
+}
+
+// LOAD USER
+async function loadUser(){
+  const { data } = await supabase.from('users').select('*').eq('id', currentUser.id).single();
+
+  xp = data.xp;
+  level = data.level;
+
+  document.getElementById('user').innerText = currentUser.email;
+  document.getElementById('xp').innerText = xp;
+  document.getElementById('level').innerText = level;
+}
+
+// XP
+async function gainXP(){
+  xp += 20;
+
+  if(xp >= 100){
+    xp -= 100;
+    level++;
   }
 
-  sessionUser = data.user;
+  await supabase.from('users').update({ xp, level }).eq('id', currentUser.id);
 
-  await createUserIfNeeded();
-  await loadUser();
-
-  showPage('home');
-  renderTasks();
-  loadFeed();
-  loadLeaderboard();
+  document.getElementById('xp').innerText = xp;
+  document.getElementById('level').innerText = level;
 }
 
 // LOGOUT
@@ -131,116 +140,13 @@ async function logout(){
   showPage('auth');
 }
 
-// CREATE USER ROW
-async function createUserIfNeeded(){
-  const { data } = await supabase.from('users').select('*').eq('id', sessionUser.id);
-
-  if(!data || data.length === 0){
-    await supabase.from('users').insert([
-      { id: sessionUser.id, username: sessionUser.email, xp:0, level:1 }
-    ]);
-  }
-}
-
-// LOAD USER
-async function loadUser(){
-  const { data } = await supabase.from('users').select('*').eq('id', sessionUser.id).single();
-  xp = data.xp;
-  level = data.level;
-  updateUI();
-}
-
-function updateUI(){
-  document.getElementById('userDisplay').innerText = sessionUser.email;
-  document.getElementById('xp').innerText = xp;
-  document.getElementById('level').innerText = level;
-}
-
-// TASKS
-function renderTasks(){
-  const div = document.getElementById('tasks');
-  div.innerHTML = "";
-
-  tasks.forEach((t,i)=>{
-    div.innerHTML += `
-      <div class='card'>${t.name} (${t.xp}xp)
-      <br><button onclick="complete(${i})">Complete</button></div>`;
-  });
-}
-
-async function complete(i){
-  xp += tasks[i].xp;
-
-  while(xp >= 100){
-    xp -= 100;
-    level++;
-  }
-
-  await supabase.from('users').update({ xp, level }).eq('id', sessionUser.id);
-
-  updateUI();
-  loadLeaderboard();
-}
-
-// POSTS
-async function addPost(){
-  const text = document.getElementById('postText').value;
-  const file = document.getElementById('fileInput').files[0];
-
-  let image_url = "";
-
-  if(file){
-    const fileName = sessionUser.id + "_" + Date.now();
-    await supabase.storage.from('proofs').upload(fileName, file);
-
-    const { data } = supabase.storage.from('proofs').getPublicUrl(fileName);
-    image_url = data.publicUrl;
-  }
-
-  await supabase.from('posts').insert([
-    { user: sessionUser.email, text, image_url }
-  ]);
-
-  loadFeed();
-}
-
-async function loadFeed(){
-  const { data } = await supabase.from('posts').select('*').order('created_at',{ascending:false});
-
-  const div = document.getElementById('feed');
-  div.innerHTML = "";
-
-  data.forEach(p=>{
-    div.innerHTML += `
-      <div class='card'>
-        <b>${p.user}</b>: ${p.text || ""}
-        ${p.image_url ? `<br><img src="${p.image_url}">` : ""}
-      </div>`;
-  });
-}
-
-// LEADERBOARD
-async function loadLeaderboard(){
-  const { data } = await supabase.from('users').select('*').order('level',{ascending:false});
-
-  const div = document.getElementById('board');
-  div.innerHTML = "";
-
-  data.forEach(u=>{
-    div.innerHTML += `<div class='card'>${u.username} - Level ${u.level}</div>`;
-  });
-}
-
 // AUTO LOGIN
 supabase.auth.getSession().then(async ({ data })=>{
   if(data.session){
-    sessionUser = data.session.user;
-    await createUserIfNeeded();
+    currentUser = data.session.user;
+    await ensureUser();
     await loadUser();
     showPage('home');
-    renderTasks();
-    loadFeed();
-    loadLeaderboard();
   }
 });
 </script>
