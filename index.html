@@ -1,178 +1,114 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>VolleyFit XP</title>
+<title>VolleyFit</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-
 <style>
-body{font-family:Arial;background:#0f172a;color:white;margin:0}
-nav{background:#020617;padding:10px;display:flex;gap:15px;justify-content:center}
-nav button{background:none;border:none;color:white;cursor:pointer}
-.page{display:none;padding:20px;text-align:center}
+body{background:#0f172a;color:white;text-align:center;font-family:Arial}
+.page{display:none}
 .active{display:block}
-.card{background:#1e293b;margin:10px auto;padding:20px;border-radius:12px;max-width:500px}
-button{padding:10px 14px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:6px}
-input{padding:10px;border-radius:6px;border:none;margin:6px;width:260px}
+button{margin:5px;padding:10px;background:#22c55e;border:none}
 </style>
 </head>
 
 <body>
 
-<nav>
-<button onclick="showPage('auth')">Auth</button>
-<button onclick="showPage('home')">Home</button>
-</nav>
+<h1>VolleyFit</h1>
 
-<!-- AUTH PAGE -->
 <div id="auth" class="page active">
-  <div class="card">
-    <h2>🔐 Login / Signup</h2>
-    <input id="email" placeholder="Email"><br>
-    <input id="password" type="password" placeholder="Password"><br>
-    <button onclick="signup()">Sign Up</button>
-    <button onclick="login()">Login</button>
-  </div>
+<input id="email" placeholder="email"><br>
+<input id="password" placeholder="password" type="password"><br>
+<button onclick="signup()">Sign Up</button>
+<button onclick="login()">Login</button>
 </div>
 
-<!-- HOME PAGE -->
 <div id="home" class="page">
-  <div class="card">
-    <h2>🏐 VolleyFit</h2>
-    <p id="user"></p>
-    <p>XP: <span id="xp">0</span></p>
-    <p>Level: <span id="level">1</span></p>
-    <button onclick="gainXP()">Do Task (+20 XP)</button>
-    <br><br>
-    <button onclick="logout()">Logout</button>
-  </div>
+<h2 id="user"></h2>
+<p>XP: <span id="xp">0</span></p>
+<p>Level: <span id="level">1</span></p>
+<button onclick="gainXP()">+20 XP</button>
+<button onclick="logout()">Logout</button>
 </div>
 
 <script>
 
-// ✅ ONLY ONE SUPABASE INSTANCE
+// ONLY ONE SUPABASE
 const supabase = window.supabase.createClient(
-  "https://bxgvyrspkjxileekhhawh.supabase.co",
+  "https://bxgvyrspkjxleekhhawh.supabase.co",
   "sb_publishable_3iDeTmy2nttM_YfjfMjHnA_TeIklQNo"
 );
 
-let currentUser = null;
+let user = null;
 let xp = 0;
 let level = 1;
 
-// 🔥 PAGE SWITCHING
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
-// 🔐 SIGNUP
 async function signup(){
-  try{
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
 
-    const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabase.auth.signUp({ email, password });
 
-    if(error) throw error;
-
-    alert("Signup successful 🔥 Now login");
-
-  }catch(err){
-    alert(err.message);
-  }
+  if(error) alert(error.message);
+  else alert("Signup worked");
 }
 
-// 🔓 LOGIN
 async function login(){
-  try{
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if(error) throw error;
+  if(error){ alert(error.message); return; }
 
-    currentUser = data.user;
+  user = data.user;
 
-    await ensureUser();
-    await loadUser();
+  await createUser();
+  await loadUser();
 
-    showPage('home');
-
-  }catch(err){
-    alert(err.message);
-  }
+  showPage('home');
 }
 
-// 👤 CREATE USER IF NOT EXISTS
-async function ensureUser(){
-  const { data } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', currentUser.id);
+async function createUser(){
+  const { data } = await supabase.from('users').select('*').eq('id', user.id);
 
-  if(!data || data.length === 0){
+  if(data.length === 0){
     await supabase.from('users').insert([
-      {
-        id: currentUser.id,
-        username: currentUser.email,
-        xp: 0,
-        level: 1
-      }
+      { id:user.id, username:user.email, xp:0, level:1 }
     ]);
   }
 }
 
-// 📊 LOAD USER DATA
 async function loadUser(){
-  const { data } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
+  const { data } = await supabase.from('users').select('*').eq('id', user.id).single();
 
   xp = data.xp;
   level = data.level;
 
-  document.getElementById('user').innerText = currentUser.email;
+  document.getElementById('user').innerText = user.email;
   document.getElementById('xp').innerText = xp;
   document.getElementById('level').innerText = level;
 }
 
-// 🎮 GAIN XP
 async function gainXP(){
   xp += 20;
+  if(xp >= 100){ xp -= 100; level++; }
 
-  if(xp >= 100){
-    xp -= 100;
-    level++;
-  }
-
-  await supabase
-    .from('users')
-    .update({ xp, level })
-    .eq('id', currentUser.id);
+  await supabase.from('users').update({ xp, level }).eq('id', user.id);
 
   document.getElementById('xp').innerText = xp;
   document.getElementById('level').innerText = level;
 }
 
-// 🚪 LOGOUT
 async function logout(){
   await supabase.auth.signOut();
   showPage('auth');
 }
-
-// 🔁 AUTO LOGIN
-supabase.auth.getSession().then(async ({ data })=>{
-  if(data.session){
-    currentUser = data.session.user;
-    await ensureUser();
-    await loadUser();
-    showPage('home');
-  }
-});
 
 </script>
 
