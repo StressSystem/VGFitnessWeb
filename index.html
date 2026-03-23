@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>VolleyFit XP (Supabase)</title>
+<title>VolleyFit XP (Auth)</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <style>
 body{font-family:Arial;background:#0f172a;color:white;margin:0}
@@ -10,153 +10,199 @@ nav{background:#020617;padding:10px;display:flex;gap:15px;justify-content:center
 nav button{background:none;border:none;color:white;cursor:pointer}
 .page{display:none;padding:20px;text-align:center}
 .active{display:block}
-.task,.post{background:#1e293b;margin:10px auto;padding:15px;border-radius:10px;max-width:500px}
-button{padding:8px 12px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:5px}
-input{padding:8px;border-radius:6px;border:none;margin:5px}
-img{max-width:100%;border-radius:8px;margin-top:5px}
+.card{background:#1e293b;margin:10px auto;padding:15px;border-radius:10px;max-width:520px}
+button{padding:8px 12px;border:none;border-radius:8px;background:#22c55e;color:black;cursor:pointer;margin:6px}
+input{padding:8px;border-radius:6px;border:none;margin:6px;width:260px}
+img{max-width:100%;border-radius:8px;margin-top:6px}
 </style>
 </head>
 <body>
 
 <nav>
-<button onclick="showPage('login')">Login</button>
+<button onclick="showPage('auth')">Auth</button>
 <button onclick="showPage('home')">Home</button>
 <button onclick="showPage('social')">Social</button>
 <button onclick="showPage('leaderboard')">Leaderboard</button>
 </nav>
 
-<div id="login" class="page active">
-<h1>Login</h1>
-<input id="username" placeholder="Username">
-<button onclick="login()">Login</button>
+<div id="auth" class="page active">
+  <div class="card">
+    <h2>🔐 Sign up / Login</h2>
+    <input id="email" placeholder="Email"><br>
+    <input id="password" type="password" placeholder="Password"><br>
+    <button onclick="signup()">Sign Up</button>
+    <button onclick="login()">Login</button>
+    <p id="authMsg"></p>
+  </div>
 </div>
 
 <div id="home" class="page">
-<h1>VolleyFit</h1>
-<h2 id="userDisplay"></h2>
-<h3>Level <span id="level">1</span></h3>
-<p>XP: <span id="xp">0</span></p>
-<h2>Tasks</h2>
-<div id="tasks"></div>
+  <div class="card">
+    <h2>🏐 VolleyFit</h2>
+    <div id="userDisplay"></div>
+    <h3>Level <span id="level">1</span></h3>
+    <p>XP: <span id="xp">0</span></p>
+    <h3>Tasks</h3>
+    <div id="tasks"></div>
+    <button onclick="logout()">Logout</button>
+  </div>
 </div>
 
 <div id="social" class="page">
-<h1>Feed</h1>
-<input id="postText" placeholder="Post">
-<input type="file" id="fileInput">
-<button onclick="addPost()">Post</button>
-<div id="feed"></div>
+  <div class="card">
+    <h2>📱 Feed</h2>
+    <input id="postText" placeholder="What did you complete?">
+    <input type="file" id="fileInput"><br>
+    <button onclick="addPost()">Post</button>
+    <div id="feed"></div>
+  </div>
 </div>
 
 <div id="leaderboard" class="page">
-<h1>Leaderboard</h1>
-<div id="board"></div>
+  <div class="card">
+    <h2>🏆 Leaderboard</h2>
+    <div id="board"></div>
+  </div>
 </div>
 
 <script>
-// 🔥 REPLACE THESE WITH YOUR VALUES
+// 🔁 REPLACE WITH YOUR VALUES
 const supabase = window.supabase.createClient(
-  "https://bxgvyrspkjxleekhhawh.supabase.co",
-  "sb_publishable_3iDeTmy2nttM_YfjfMjHnA_TeIklQNo"
+  "YOUR_PROJECT_URL",
+  "YOUR_PUBLISHABLE_KEY"
 );
 
-let user = "";
-let xp = 0;
-let level = 1;
+let sessionUser = null; // supabase auth user
+let xp = 0, level = 1;
 
 const tasks = [
-{name:"10 pushups",xp:10},
-{name:"20 squats",xp:15},
-{name:"50 passes",xp:20},
-{name:"serve 20",xp:25},
-{name:"spike 15",xp:30}
+  {name:"10 pushups",xp:10},
+  {name:"20 squats",xp:15},
+  {name:"50 passes",xp:20},
+  {name:"serve 20",xp:25},
+  {name:"spike 15",xp:30}
 ];
 
 function showPage(id){
-document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
 }
 
-// LOGIN (creates user if not exists)
+// AUTH
+async function signup(){
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  document.getElementById('authMsg').innerText = error ? error.message : 'Account created! Check email if required.';
+}
+
 async function login(){
-user=document.getElementById("username").value;
-if(!user) return;
-
-let { data } = await supabase.from('users').select('*').eq('username', user);
-
-if(data.length===0){
-await supabase.from('users').insert([{username:user,xp:0,level:1}]);
-xp=0;level=1;
-}else{
-xp=data[0].xp;level=data[0].level;
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if(error){
+    document.getElementById('authMsg').innerText = error.message; return;
+  }
+  sessionUser = data.user;
+  await ensureUserRow();
+  await loadUser();
+  showPage('home');
+  renderTasks();
+  loadFeed();
+  loadLeaderboard();
 }
 
-showPage('home');
-updateUI();
-renderTasks();
-loadFeed();
-loadLeaderboard();
+async function logout(){
+  await supabase.auth.signOut();
+  sessionUser = null;
+  showPage('auth');
 }
 
-function renderTasks(){
-let div=document.getElementById("tasks");div.innerHTML="";
-tasks.forEach((t,i)=>{
-div.innerHTML+=`<div class='task'>${t.name} (${t.xp}xp)<br>
-<button onclick="complete(${i})">Complete</button></div>`;
-});
+// Ensure row in users table (id = auth user id)
+async function ensureUserRow(){
+  const { data } = await supabase.from('users').select('*').eq('id', sessionUser.id);
+  if(!data || data.length===0){
+    await supabase.from('users').insert([{ id: sessionUser.id, username: sessionUser.email, xp:0, level:1 }]);
+  }
 }
 
-async function complete(i){
-xp+=tasks[i].xp;
-while(xp>=100){xp-=100;level++;}
-
-await supabase.from('users').update({xp,level}).eq('username',user);
-updateUI();
-loadLeaderboard();
+async function loadUser(){
+  const { data } = await supabase.from('users').select('*').eq('id', sessionUser.id).single();
+  xp = data.xp; level = data.level;
+  updateUI();
 }
 
 function updateUI(){
-document.getElementById("xp").innerText=xp;
-document.getElementById("level").innerText=level;
-document.getElementById("userDisplay").innerText=user;
+  document.getElementById('userDisplay').innerText = sessionUser?.email || '';
+  document.getElementById('xp').innerText = xp;
+  document.getElementById('level').innerText = level;
 }
 
-// 📸 POST WITH IMAGE
+function renderTasks(){
+  const div = document.getElementById('tasks'); div.innerHTML='';
+  tasks.forEach((t,i)=>{
+    const needProof = t.xp >= 25;
+    div.innerHTML += `<div class='card'>${t.name} (${t.xp}xp) ${needProof?'📸 Proof Required':''}<br>
+      <button onclick="complete(${i})">Complete</button></div>`;
+  });
+}
+
+async function complete(i){
+  const t = tasks[i];
+  if(t.xp>=25 && !confirm('Post proof first?')){ alert('No proof = no XP 😈'); return; }
+  xp += t.xp;
+  while(xp>=100){ xp-=100; level++; }
+  await supabase.from('users').update({ xp, level }).eq('id', sessionUser.id);
+  updateUI();
+  loadLeaderboard();
+}
+
+// SOCIAL (with storage)
 async function addPost(){
-let text=document.getElementById("postText").value;
-let file=document.getElementById("fileInput").files[0];
-
-let imageUrl="";
-
-if(file){
-let fileName = Date.now()+"_"+file.name;
-await supabase.storage.from('proofs').upload(fileName,file);
-
-let { data } = supabase.storage.from('proofs').getPublicUrl(fileName);
-imageUrl=data.publicUrl;
-}
-
-await supabase.from('posts').insert([{user,text,image_url:imageUrl}]);
-loadFeed();
+  if(!sessionUser) return alert('Login first');
+  const text = document.getElementById('postText').value;
+  const file = document.getElementById('fileInput').files[0];
+  let image_url = '';
+  if(file){
+    const fileName = `${sessionUser.id}_${Date.now()}_${file.name}`;
+    await supabase.storage.from('proofs').upload(fileName, file);
+    const { data } = supabase.storage.from('proofs').getPublicUrl(fileName);
+    image_url = data.publicUrl;
+  }
+  await supabase.from('posts').insert([{ user: sessionUser.email, text, image_url }]);
+  document.getElementById('postText').value='';
+  document.getElementById('fileInput').value='';
+  loadFeed();
 }
 
 async function loadFeed(){
-let { data } = await supabase.from('posts').select('*').order('created_at',{ascending:false});
-let div=document.getElementById("feed");div.innerHTML="";
-
-data.forEach(p=>{
-div.innerHTML+=`<div class='post'><b>${p.user}</b>: ${p.text||""}${p.image_url?`<br><img src="${p.image_url}">`:""}</div>`;
-});
+  const { data } = await supabase.from('posts').select('*').order('created_at', { ascending:false });
+  const div = document.getElementById('feed'); div.innerHTML='';
+  (data||[]).forEach(p=>{
+    div.innerHTML += `<div class='card'><b>${p.user}</b>: ${p.text||''}${p.image_url?`<br><img src="${p.image_url}">`:''}</div>`;
+  });
 }
 
 async function loadLeaderboard(){
-let { data } = await supabase.from('users').select('*').order('level',{ascending:false});
-let div=document.getElementById("board");div.innerHTML="";
-
-data.forEach(u=>{
-div.innerHTML+=`<div class='task'>${u.username} - Level ${u.level}</div>`;
-});
+  const { data } = await supabase.from('users').select('*').order('level', { ascending:false });
+  const div = document.getElementById('board'); div.innerHTML='';
+  (data||[]).forEach(u=>{
+    div.innerHTML += `<div class='card'>${u.username} — Level ${u.level}</div>`;
+  });
 }
+
+// keep session on refresh
+supabase.auth.getSession().then(async ({ data })=>{
+  if(data.session){
+    sessionUser = data.session.user;
+    await ensureUserRow();
+    await loadUser();
+    showPage('home');
+    renderTasks();
+    loadFeed();
+    loadLeaderboard();
+  }
+});
 </script>
 
 </body>
